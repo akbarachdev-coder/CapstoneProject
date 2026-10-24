@@ -1,5 +1,6 @@
 <?php
 
+use Monolog\Formatter\JsonFormatter;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -124,6 +125,18 @@ return [
             'driver' => 'errorlog',
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
+        ],
+
+        'audit' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/audit.log'),
+            'level' => 'info',
+            'max_files' => env('AUDIT_LOG_DAYS', 365),
+            'replace_placeholders' => false,
+            'formatter' => JsonFormatter::class,
+            'formatter_with' => [
+                'appendNewline' => true,
+            ],
         ],
 
         'null' => [
