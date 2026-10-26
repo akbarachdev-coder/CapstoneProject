@@ -19,12 +19,9 @@ import { icon } from "../lib/icons.js";
 import {
     emptyState,
     errorState,
-    openModal,
     statCard,
     statusBadge,
-    toast,
 } from "../lib/ui.js";
-import { openPaymentModal } from "../lib/payment.js";
 
 const buildDays = (count = 7) =>
     Array.from({ length: count }, (_, index) => {
@@ -128,7 +125,7 @@ const pendingMarkup = (transactions) => {
                                 </div>
                                 <div class="text-right">
                                     <p class="text-xs font-semibold text-coffee-800">${rupiah(remaining)}</p>
-                                    <button type="button" data-pay-id="${trx.id_transaksi}" class="text-[10px] font-bold text-clay-600 hover:text-clay-700">Bayar →</button>
+                                    <a href="#/transaksi?id=${trx.id_transaksi}" class="text-[10px] font-bold text-clay-600 hover:text-clay-700">Lihat →</a>
                                 </div>
                             </div>
                         `;
@@ -213,8 +210,8 @@ const recentMarkup = (transactions) => `
                       iconName: "receipt",
                       title: "Belum ada transaksi",
                       description:
-                          "Transaksi yang Anda catat akan muncul di sini.",
-                      action: '<a href="#/transaksi-baru" class="btn-primary btn-sm">Buat transaksi pertama</a>',
+                          "Transaksi dari kasir dan pesanan pelanggan akan muncul di sini.",
+                      action: '<a href="#/transaksi" class="btn-primary btn-sm">Lihat transaksi</a>',
                   })
         }
     </div>
@@ -359,13 +356,17 @@ export async function renderDashboard({ user, page, signal, navigate }) {
                             }
                         </p>
                         <div class="mt-5 flex flex-wrap gap-2">
-                            <a href="#/transaksi-baru" class="btn-accent">
-                                ${icon("plus", "size-4")}
-                                Transaksi baru
+                            <a href="#/kasir" class="btn-accent">
+                                ${icon('users', 'size-4')}
+                                Kelola pengguna
                             </a>
-                            <a href="#/transaksi?status=pending" class="btn border border-white/15 bg-white/5 text-cream-50 hover:bg-white/10">
-                                ${icon("clock", "size-4")}
-                                Lihat ${pendingCount} pending
+                            <a href="#/laporan-penjualan" class="btn border border-white/15 bg-white/5 text-cream-50 hover:bg-white/10">
+                                ${icon('chart', 'size-4')}
+                                Laporan penjualan
+                            </a>
+                            <a href="#/laporan-pendapatan" class="btn border border-white/15 bg-white/5 text-cream-50 hover:bg-white/10">
+                                ${icon('coin', 'size-4')}
+                                Laporan pendapatan
                             </a>
                         </div>
                     </div>
@@ -430,20 +431,6 @@ export async function renderDashboard({ user, page, signal, navigate }) {
             row.addEventListener("click", () =>
                 navigate(`transaksi?id=${row.dataset.openTrx}`),
             );
-        });
-
-        page.querySelectorAll("[data-pay-id]").forEach((button) => {
-            button.addEventListener("click", (event) => {
-                event.stopPropagation();
-                const trx = transactions.find(
-                    (item) =>
-                        String(item.id_transaksi) === button.dataset.payId,
-                );
-                if (!trx) return;
-                openPaymentModal(trx, {
-                    onSuccess: () => load(),
-                });
-            });
         });
     };
 

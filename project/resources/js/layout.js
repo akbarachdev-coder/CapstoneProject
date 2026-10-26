@@ -6,23 +6,24 @@ export const NAV_GROUPS = [
         label: 'Operasional',
         items: [
             { key: 'dashboard', path: 'dashboard', label: 'Ringkasan', icon: 'dashboard' },
-            { key: 'pos', path: 'transaksi-baru', label: 'Kasir / POS', icon: 'cup' },
-            { key: 'transaksi', path: 'transaksi', label: 'Transaksi', icon: 'receipt' },
-            { key: 'reservasi', path: 'reservasi', label: 'Reservasi', icon: 'calendar' },
+            { key: 'pos', path: 'transaksi-baru', label: 'Catat Pesanan', icon: 'cup', roles: ['kasir'] },
+            { key: 'transaksi', path: 'transaksi', label: 'Riwayat Transaksi', icon: 'receipt', roles: ['admin', 'kasir'] },
         ],
     },
     {
-        label: 'Data & Laporan',
+        label: 'Manajemen',
         items: [
-            { key: 'menu', path: 'menu', label: 'Menu', icon: 'bag' },
-            { key: 'pelanggan', path: 'pelanggan', label: 'Pelanggan', icon: 'users' },
-            { key: 'laporan', path: 'laporan', label: 'Laporan', icon: 'chart', adminOnly: true },
-            { key: 'kasir', path: 'kasir', label: 'Kelola Kasir', icon: 'cashier', adminOnly: true },
+            { key: 'menu', path: 'menu', label: 'Daftar Menu', icon: 'bag', roles: ['admin', 'kasir'] },
+            { key: 'laporan-penjualan', path: 'laporan-penjualan', label: 'Laporan Penjualan', icon: 'chart', roles: ['admin'] },
+            { key: 'laporan-pendapatan', path: 'laporan-pendapatan', label: 'Laporan Pendapatan', icon: 'coin', roles: ['admin'] },
+            { key: 'kasir', path: 'kasir', label: 'Kelola Pengguna', icon: 'users', roles: ['admin'] },
         ],
     },
 ];
 
 export const NAV_ITEMS = NAV_GROUPS.flatMap((group) => group.items);
+
+const canSee = (item, user) => !item.roles || item.roles.includes(user.role);
 
 const roleLabel = (role) => (role === 'admin' ? 'Administrator' : 'Kasir');
 
@@ -37,7 +38,7 @@ const brandMark = `
 `;
 
 const navMarkup = (user, currentPath) => NAV_GROUPS.map((group) => {
-    const items = group.items.filter((item) => !item.adminOnly || user.role === 'admin');
+    const items = group.items.filter((item) => canSee(item, user));
     if (!items.length) return '';
 
     return `

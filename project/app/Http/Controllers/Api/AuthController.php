@@ -10,10 +10,41 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password;
 
 class AuthController extends ApiController
 {
     private const DUMMY_HASH = '$2y$12$FFiOvFabL7.c.aUp8dpal.S3Smct6ADDLLiFv642mpV8X.qBSLBga';
+
+    public function register(Request $request): JsonResponse
+    {
+        $request->merge([
+            'name' => trim((string) $request->input('name')),
+            'email' => Str::lower(trim((string) $request->input('email'))),
+        ]);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'max:72', 'confirmed', Password::defaults()],
+        ]);
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => $validated['password'],
+            'is_active' => true,
+        ]);
+        $user->role = User::ROLE_KASIR;
+        $user->save();
+
+        AuditLogger::log('auth.register', 'user', $user->id);
+
+        return response()->json([
+            'message' => 'Berhasil mendaftar.',
+            'data' => new UserResource($user),
+        ], 201);
+    }
 
     public function login(LoginRequest $request): JsonResponse
     {

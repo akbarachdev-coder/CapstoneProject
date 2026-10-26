@@ -11,6 +11,7 @@ class TransaksiResource extends JsonResource
     {
         return [
             'id_transaksi' => $this->id_transaksi,
+            'kode_pesanan' => $this->kode_pesanan,
             'id_kasir' => $this->id_kasir,
             'kasir' => new KasirResource($this->whenLoaded('kasir')),
             'id_pelanggan' => $this->id_pelanggan,

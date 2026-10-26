@@ -6,10 +6,10 @@ use App\Http\Requests\Transaksi\StoreTransaksiRequest;
 use App\Http\Requests\Transaksi\UpdateTransaksiRequest;
 use App\Http\Requests\Transaksi\UpdateTransaksiStatusRequest;
 use App\Http\Resources\TransaksiResource;
-use App\Models\Menu;
 use App\Models\Pembayaran;
 use App\Models\Transaksi;
 use App\Support\AuditLogger;
+use App\Support\TransaksiDetailBuilder;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,7 +51,10 @@ class TransaksiController extends ApiController
                 abort(403, 'Akun kasir belum terhubung ke data kasir.');
             }
 
-            $query->where('id_kasir', $user->id_kasir);
+            $query->where(function ($query) use ($user) {
+                $query->where('id_kasir', $user->id_kasir)
+                    ->orWhereNull('id_kasir');
+            });
         }
 
         return TransaksiResource::collection(
@@ -241,39 +244,6 @@ class TransaksiController extends ApiController
 
     private function buildDetails(array $items): array
     {
-        $menuIds = collect($items)->pluck('id_menu')->map(fn ($id) => (int) $id)->unique()->values();
-
-        $menus = Menu::query()
-            ->whereIn('id_menu', $menuIds)
-            ->lockForUpdate()
-            ->get()
-            ->keyBy('id_menu');
-
-        $details = [];
-        $total = 0.0;
-
-        foreach ($items as $item) {
-            $menu = $menus->get((int) $item['id_menu']);
-
-            if (! $menu) {
-                throw ValidationException::withMessages([
-                    'items' => ['Salah satu menu tidak ditemukan.'],
-                ]);
-            }
-
-            $jumlah = (int) $item['jumlah'];
-            $hargaSatuan = (float) $menu->harga;
-            $subtotal = round($hargaSatuan * $jumlah, 2);
-            $total = round($total + $subtotal, 2);
-
-            $details[] = [
-                'id_menu' => $menu->id_menu,
-                'jumlah' => $jumlah,
-                'harga_satuan' => $hargaSatuan,
-                'subtotal' => $subtotal,
-            ];
-        }
-
-        return [$details, $total];
+        return TransaksiDetailBuilder::build($items);
     }
 }

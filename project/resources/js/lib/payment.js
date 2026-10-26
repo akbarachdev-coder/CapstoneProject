@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { formError, invoiceNumber, paidAmount, remainingAmount } from './components.js';
 import { rupiah } from './format.js';
 import { icon } from './icons.js';
+import { showReceiptModal } from './receipt.js';
 import { methodLabel, openModal, setButtonLoading, toast } from './ui.js';
 
 export const PAYMENT_METHODS = [
@@ -149,6 +150,13 @@ export function openPaymentModal(transaksi, { onSuccess = null } = {}) {
 
                     modalClose();
                     onSuccess?.(response?.data || null);
+
+                    try {
+                        const updated = await api.get(`transaksi/${transaksi.id_transaksi}`);
+                        showReceiptModal(updated.data, { autoPrint: true });
+                    } catch {
+                        // Struk tetap bisa dicetak ulang dari riwayat transaksi.
+                    }
                 } catch (error) {
                     errorBox.innerHTML = formError(error?.firstError || error?.message || 'Pembayaran gagal disimpan.');
                     setButtonLoading(submit, false);

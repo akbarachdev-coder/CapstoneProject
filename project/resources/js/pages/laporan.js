@@ -28,7 +28,7 @@ const buildRange = (dari, sampai) => {
     return days;
 };
 
-const chartMarkup = (days) => {
+const chartMarkup = (days, isRevenue = false) => {
     if (!days.length) return '';
 
     const max = Math.max(...days.map((day) => day.total), 1);
@@ -39,10 +39,10 @@ const chartMarkup = (days) => {
         <div class="card overflow-hidden print-area">
             <div class="flex flex-col gap-2 border-b border-coffee-200/60 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div>
-                    <h2 class="font-display text-lg font-semibold text-coffee-900">Penjualan per hari</h2>
+                    <h2 class="font-display text-lg font-semibold text-coffee-900">${isRevenue ? 'Pendapatan per hari' : 'Penjualan per hari'}</h2>
                     <p class="mt-0.5 text-xs text-coffee-400">${days.length} hari dalam periode ini</p>
                 </div>
-                <span class="badge-neutral">${formatNumber(days.reduce((total, day) => total + day.count, 0))} transaksi</span>
+                <span class="badge-neutral">${formatNumber(days.reduce((total, day) => total + day.count, 0))} ${isRevenue ? 'pembayaran' : 'transaksi'}</span>
             </div>
 
             <div class="overflow-x-auto px-5 py-6 sm:px-6">
@@ -64,7 +64,7 @@ const chartMarkup = (days) => {
                         `;
                     }).join('')}
                 </div>
-                ${hasSales ? '' : '<p class="mt-4 text-center text-xs text-coffee-400">Tidak ada penjualan pada periode ini.</p>'}
+                ${hasSales ? '' : `<p class="mt-4 text-center text-xs text-coffee-400">Tidak ada ${isRevenue ? 'pendapatan' : 'penjualan'} pada periode ini.</p>`}
             </div>
         </div>
     `;
@@ -120,12 +120,12 @@ const methodMarkup = (methods) => {
     `;
 };
 
-const dailyTable = (days) => `
+const dailyTable = (days, isRevenue = false) => `
     <div class="card overflow-hidden print-area">
         <div class="flex items-center justify-between border-b border-coffee-200/60 px-5 py-4 sm:px-6">
             <div>
                 <h2 class="font-display text-lg font-semibold text-coffee-900">Rincian harian</h2>
-                <p class="mt-0.5 text-xs text-coffee-400">Rekap transaksi dan omzet per tanggal</p>
+                <p class="mt-0.5 text-xs text-coffee-400">${isRevenue ? 'Rekap pembayaran dan pendapatan per tanggal' : 'Rekap transaksi dan omzet per tanggal'}</p>
             </div>
             <span class="badge-neutral">${days.length} hari</span>
         </div>
@@ -134,8 +134,8 @@ const dailyTable = (days) => `
                 <thead>
                     <tr>
                         <th>Tanggal</th>
-                        <th class="text-right">Transaksi</th>
-                        <th class="text-right">Omzet</th>
+                        <th class="text-right">${isRevenue ? 'Pembayaran' : 'Transaksi'}</th>
+                        <th class="text-right">${isRevenue ? 'Pendapatan' : 'Omzet'}</th>
                         <th class="text-right">Rata-rata</th>
                     </tr>
                 </thead>
@@ -157,7 +157,8 @@ const dailyTable = (days) => `
     </div>
 `;
 
-export async function renderLaporan({ page, signal }) {
+export async function renderLaporan({ page, signal, mode = 'penjualan' }) {
+    const isRevenue = mode === 'pendapatan';
     const state = {
         dari: daysAgo(6),
         sampai: today(),
@@ -168,8 +169,10 @@ export async function renderLaporan({ page, signal }) {
         page.innerHTML = `
             ${pageHead({
                 eyebrow: 'Analitik',
-                title: 'Laporan penjualan',
-                description: 'Analisis omzet dan metode pembayaran Café Titik Temu.',
+                title: isRevenue ? 'Laporan pendapatan' : 'Laporan penjualan',
+                description: isRevenue
+                    ? 'Pantau pembayaran yang diterima dan pendapatan Café Titik Temu.'
+                    : 'Analisis omzet, transaksi, dan metode pembayaran Café Titik Temu.',
                 actions: `
                     <button type="button" data-print class="btn-secondary no-print">${icon('printer', 'size-4')} Cetak laporan</button>
                 `,
@@ -212,7 +215,7 @@ export async function renderLaporan({ page, signal }) {
 
     const renderReport = (report) => {
         const content = page.querySelector('#report-content');
-        const summary = report.ringkasan || { jumlah_transaksi: 0, total_penjualan: 0 };
+        const summary = report.ringkasan || {};
         const methods = report.per_metode_pembayaran || [];
         const days = buildRange(report.periode?.dari || state.dari, report.periode?.sampai || state.sampai);
         const dayMap = new Map(days.map((day) => [day.iso, day]));
@@ -221,13 +224,13 @@ export async function renderLaporan({ page, signal }) {
             const iso = String(row.tanggal).slice(0, 10);
             const day = dayMap.get(iso);
             if (day) {
-                day.total = Number(row.total_penjualan || 0);
-                day.count = Number(row.jumlah_transaksi || 0);
+                day.total = Number((isRevenue ? row.total_pendapatan : row.total_penjualan) || 0);
+                day.count = Number((isRevenue ? row.jumlah_pembayaran : row.jumlah_transaksi) || 0);
             }
         });
 
-        const totalTransactions = Number(summary.jumlah_transaksi || 0);
-        const totalSales = Number(summary.total_penjualan || 0);
+        const totalTransactions = Number((isRevenue ? summary.jumlah_pembayaran : summary.jumlah_transaksi) || 0);
+        const totalSales = Number((isRevenue ? summary.total_pendapatan : summary.total_penjualan) || 0);
         const average = totalTransactions ? totalSales / totalTransactions : 0;
         const topMethod = methods.length
             ? [...methods].sort((a, b) => Number(b.total) - Number(a.total))[0]
@@ -236,29 +239,29 @@ export async function renderLaporan({ page, signal }) {
         content.innerHTML = `
             <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 ${statCard({
-                    label: 'Total penjualan',
+                    label: isRevenue ? 'Total pendapatan' : 'Total penjualan',
                     value: rupiah(totalSales),
                     hint: `${formatDate(report.periode?.dari)} – ${formatDate(report.periode?.sampai)}`,
                     iconName: 'coin',
                     tone: 'sage',
                 })}
                 ${statCard({
-                    label: 'Jumlah transaksi',
+                    label: isRevenue ? 'Jumlah pembayaran' : 'Jumlah transaksi',
                     value: formatNumber(totalTransactions),
                     hint: `${days.filter((day) => day.count > 0).length} hari aktif`,
-                    iconName: 'receipt',
+                    iconName: isRevenue ? 'wallet' : 'receipt',
                     tone: 'clay',
                 })}
                 ${statCard({
-                    label: 'Rata-rata transaksi',
+                    label: isRevenue ? 'Rata-rata pendapatan' : 'Rata-rata transaksi',
                     value: rupiah(average),
-                    hint: 'Per transaksi pada periode ini',
+                    hint: isRevenue ? 'Per pembayaran pada periode ini' : 'Per transaksi pada periode ini',
                     iconName: 'trendingUp',
                     tone: 'coffee',
                 })}
                 ${statCard({
                     label: 'Metode terpopuler',
-                    value: topMethod ? methodLabel(topMethod.metode_pembayaran) : '—',
+                    value: topMethod ? methodLabel(topMethod.metode_pembayaran) : '–',
                     hint: topMethod ? `${rupiah(topMethod.total)} diterima` : 'Belum ada pembayaran',
                     iconName: 'wallet',
                     tone: 'amber',
@@ -266,11 +269,11 @@ export async function renderLaporan({ page, signal }) {
             </div>
 
             <div class="mt-5 grid gap-5 xl:grid-cols-3">
-                <div class="xl:col-span-2">${chartMarkup(days)}</div>
+                <div class="xl:col-span-2">${chartMarkup(days, isRevenue)}</div>
                 ${methodMarkup(methods)}
             </div>
 
-            <div class="mt-5">${dailyTable(days)}</div>
+            <div class="mt-5">${dailyTable(days, isRevenue)}</div>
         `;
     };
 
@@ -293,7 +296,7 @@ export async function renderLaporan({ page, signal }) {
         }
 
         try {
-            const response = await api.get('laporan/penjualan', {
+            const response = await api.get(isRevenue ? 'laporan/pendapatan' : 'laporan/penjualan', {
                 dari: state.dari,
                 sampai: state.sampai,
             });

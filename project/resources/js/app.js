@@ -2,7 +2,9 @@ import { authApi, session } from './lib/api.js';
 import { confirmModal, pageSkeleton, toast } from './lib/ui.js';
 import { mountShell } from './layout.js';
 import { renderLogin } from './pages/login.js';
+import { renderRegister } from './pages/register.js';
 import { renderDashboard } from './pages/dashboard.js';
+import { renderDashboardKasir } from './pages/dashboard-kasir.js';
 import { renderPos } from './pages/pos.js';
 import { renderTransaksi } from './pages/transaksi.js';
 import { renderMenu } from './pages/menu.js';
@@ -10,26 +12,53 @@ import { renderPelanggan } from './pages/pelanggan.js';
 import { renderReservasi } from './pages/reservasi.js';
 import { renderLaporan } from './pages/laporan.js';
 import { renderKasir } from './pages/kasir.js';
+import { renderCustomerPortal } from './pages/pelanggan-portal.js';
 
 const appRoot = document.getElementById('app');
 const bootScreen = document.getElementById('boot');
 
 const routes = {
-    dashboard: { title: 'Ringkasan', render: renderDashboard },
-    'transaksi-baru': { title: 'Kasir / POS', render: renderPos },
-    transaksi: { title: 'Transaksi', render: renderTransaksi },
-    menu: { title: 'Menu', render: renderMenu },
-    pelanggan: { title: 'Pelanggan', render: renderPelanggan },
-    reservasi: { title: 'Reservasi', render: renderReservasi },
-    laporan: { title: 'Laporan', render: renderLaporan, adminOnly: true },
-    kasir: { title: 'Kelola Kasir', render: renderKasir, adminOnly: true },
+    dashboard: { title: 'Ringkasan', render: renderDashboardByRole },
+    'transaksi-baru': { title: 'Kasir / POS', render: renderPos, roles: ['kasir'] },
+    transaksi: { title: 'Riwayat Transaksi', render: renderTransaksi, roles: ['admin', 'kasir'] },
+    menu: { title: 'Daftar Menu', render: renderMenu, roles: ['admin', 'kasir'] },
+    pelanggan: { title: 'Pelanggan', render: renderPelanggan, roles: ['admin', 'kasir'] },
+    reservasi: { title: 'Reservasi', render: renderReservasi, roles: ['admin', 'kasir'] },
+    'laporan-penjualan': {
+        title: 'Laporan Penjualan',
+        render: (context) => renderLaporan({ ...context, mode: 'penjualan' }),
+        roles: ['admin'],
+    },
+    'laporan-pendapatan': {
+        title: 'Laporan Pendapatan',
+        render: (context) => renderLaporan({ ...context, mode: 'pendapatan' }),
+        roles: ['admin'],
+    },
+    laporan: { title: 'Laporan', render: renderLegacyReport, roles: ['admin'] },
+    kasir: { title: 'Kelola Pengguna', render: renderKasir, roles: ['admin'] },
 };
 
 let currentUser = null;
 let shell = null;
+let portalReturnUser = null;
 let routeController = null;
 let shellController = null;
 let bootHidden = false;
+
+function renderDashboardByRole(context) {
+    return context.user.role === 'admin'
+        ? renderDashboard(context)
+        : renderDashboardKasir(context);
+}
+
+function renderLegacyReport({ navigate }) {
+    navigate('laporan-penjualan', { replace: true });
+}
+
+const isCustomerRoute = () => {
+    const path = location.hash.replace(/^#\/?/, '').split('?')[0].split('/')[0];
+    return path === 'pesan';
+};
 
 const clearOverlays = () => {
     document.querySelectorAll('[data-modal-backdrop]').forEach((overlay) => overlay.remove());
@@ -64,15 +93,15 @@ const renderRoute = async () => {
     const raw = location.hash.replace(/^#\/?/, '') || 'dashboard';
     const [pathPart, queryString = ''] = raw.split('?');
     const path = pathPart.split('/')[0] || 'dashboard';
-    let route = routes[path];
+    const routeConfig = routes[path];
 
-    if (!route) {
+    if (!routeConfig) {
         navigate('dashboard', { replace: true });
         return;
     }
 
-    if (route.adminOnly && currentUser.role !== 'admin') {
-        toast('Halaman ini hanya tersedia untuk administrator.', 'warning', 'Akses terbatas');
+    if (routeConfig.roles && !routeConfig.roles.includes(currentUser.role)) {
+        toast('Halaman ini tidak tersedia untuk peran Anda.', 'warning', 'Akses terbatas');
         navigate('dashboard', { replace: true });
         return;
     }
@@ -81,8 +110,8 @@ const renderRoute = async () => {
     routeController = new AbortController();
 
     shell.setActive(path === 'transaksi-baru' ? 'pos' : path);
-    shell.setCrumb(route.title);
-    document.title = `${route.title} · Titik Temu`;
+    shell.setCrumb(routeConfig.title);
+    document.title = `${routeConfig.title} · Titik Temu`;
     shell.page.innerHTML = pageSkeleton();
 
     const context = {
@@ -99,7 +128,7 @@ const renderRoute = async () => {
     };
 
     try {
-        await route.render(context);
+        await routeConfig.render(context);
     } catch (error) {
         if (error?.name === 'AbortError' || context.signal.aborted) return;
         shell.page.innerHTML = `
@@ -120,22 +149,100 @@ const renderRoute = async () => {
 };
 
 const route = () => {
+    if (isCustomerRoute()) {
+        showCustomerPortal();
+        return;
+    }
+
+    if (portalReturnUser) {
+        const staffUser = portalReturnUser;
+        portalReturnUser = null;
+        startApp(staffUser);
+        return;
+    }
+
+    if (!currentUser || !shell) {
+        if (session.token) {
+            boot();
+            return;
+        }
+
+        showLogin();
+        return;
+    }
+
     renderRoute();
 };
 
-const showLogin = () => {
+const resetViews = () => {
     routeController?.abort();
     shellController?.abort();
     routeController = null;
     shellController = null;
     shell = null;
-    currentUser = null;
     clearOverlays();
     appRoot.innerHTML = '';
+};
+
+const showLogin = ({ initialEmail = '', notice = '' } = {}) => {
+    resetViews();
+    currentUser = null;
+    if (isCustomerRoute()) {
+        history.replaceState(null, '', '#/login');
+    }
     renderLogin(appRoot, {
         onSuccess: (user) => startApp(user),
+        onRegister: () => showRegister(),
+        onCustomer: () => showCustomerPortal(),
+        initialEmail,
+        notice,
     });
     document.title = 'Masuk · Titik Temu';
+    hideBoot();
+};
+
+const showRegister = () => {
+    resetViews();
+    currentUser = null;
+    renderRegister(appRoot, {
+        onSuccess: (email) => {
+            showLogin({
+                initialEmail: email,
+                notice: 'Akun berhasil dibuat. Silakan masuk dengan kata sandi Anda.',
+            });
+            toast('Pendaftaran berhasil. Silakan masuk.', 'success', 'Akun dibuat');
+        },
+        onLogin: () => showLogin(),
+    });
+    document.title = 'Daftar · Titik Temu';
+    hideBoot();
+};
+
+const showCustomerPortal = () => {
+    portalReturnUser = currentUser;
+    resetViews();
+    currentUser = null;
+    renderCustomerPortal(appRoot, {
+        onExit: () => {
+            const staffUser = portalReturnUser;
+            portalReturnUser = null;
+
+            if (staffUser) {
+                startApp(staffUser);
+                return;
+            }
+
+            if (session.token) {
+                history.replaceState(null, '', '#/dashboard');
+                boot();
+                return;
+            }
+
+            history.replaceState(null, '', '#/login');
+            showLogin();
+        },
+    });
+    document.title = 'Pesan Online · Titik Temu';
     hideBoot();
 };
 
@@ -154,7 +261,7 @@ const startApp = (user) => {
 
     hideBoot();
 
-    if (!location.hash.startsWith('#/')) {
+    if (!location.hash.startsWith('#/') || isCustomerRoute()) {
         history.replaceState(null, '', '#/dashboard');
     }
 
@@ -191,6 +298,11 @@ window.addEventListener('auth:expired', () => {
 });
 
 const boot = async () => {
+    if (isCustomerRoute()) {
+        showCustomerPortal();
+        return;
+    }
+
     if (!session.token) {
         showLogin();
         return;

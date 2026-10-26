@@ -16,6 +16,10 @@ abstract class ApiController extends Controller
             return;
         }
 
+        if ($transaksi->id_kasir === null) {
+            return;
+        }
+
         if (! $user->id_kasir || (int) $user->id_kasir !== (int) $transaksi->id_kasir) {
             abort(403, 'Anda tidak memiliki akses ke transaksi ini.');
         }

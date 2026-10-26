@@ -113,6 +113,17 @@ export const api = {
 };
 
 export const authApi = {
+    async register(name, email, password, passwordConfirmation) {
+        const response = await api.post('auth/register', {
+            name,
+            email,
+            password,
+            password_confirmation: passwordConfirmation,
+        }, { skipAuthRedirect: true });
+
+        return response.data;
+    },
+
     async login(email, password) {
         const response = await api.post('auth/login', { email, password }, { skipAuthRedirect: true });
         session.set(response.data);
@@ -132,5 +143,29 @@ export const authApi = {
         } finally {
             session.clear();
         }
+    },
+};
+
+export const customerApi = {
+    async menu(query = {}) {
+        const response = await api.get('menu', { per_page: 100, ...query });
+        return response;
+    },
+
+    async createOrder(payload) {
+        const response = await api.post('pelanggan/pesanan', payload, { skipAuthRedirect: true });
+        return response.data;
+    },
+
+    async order(kode) {
+        const response = await api.get(`pelanggan/pesanan/${encodeURIComponent(kode)}`, undefined, { skipAuthRedirect: true });
+        return response.data;
+    },
+
+    async pay(kode, payload) {
+        const response = await api.post(`pelanggan/pesanan/${encodeURIComponent(kode)}/pembayaran`, payload, {
+            skipAuthRedirect: true,
+        });
+        return response.data;
     },
 };

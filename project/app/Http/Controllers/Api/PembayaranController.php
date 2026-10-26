@@ -41,7 +41,10 @@ class PembayaranController extends ApiController
                 abort(403, 'Akun kasir belum terhubung ke data kasir.');
             }
 
-            $query->whereHas('transaksi', fn ($query) => $query->where('id_kasir', $user->id_kasir));
+            $query->whereHas('transaksi', function ($query) use ($user) {
+                $query->where('id_kasir', $user->id_kasir)
+                    ->orWhereNull('id_kasir');
+            });
         }
 
         return PembayaranResource::collection(

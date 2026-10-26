@@ -18,10 +18,10 @@ const brand = `
 const features = [
     ['receipt', 'Catat pesanan dalam hitungan detik', 'Kelola transaksi, pembayaran bertahap, dan status pesanan.'],
     ['chart', 'Laporan penjualan yang rapi', 'Pantau omzet harian dan metode pembayaran favorit pelanggan.'],
-    ['calendar', 'Reservasi meja tanpa tumpang tindih', 'Atur jadwal kunjungan dan jumlah tamu dengan mudah.'],
+    ['users', 'Kelola akses staf dengan mudah', 'Atur akun admin dan kasir sesuai kebutuhan operasional kafe.'],
 ];
 
-export function renderLogin(root, { onSuccess }) {
+export function renderLogin(root, { onSuccess, onRegister = null, onCustomer = null, initialEmail = '', notice = '' }) {
     root.innerHTML = `
         <div class="grid min-h-screen lg:grid-cols-[1.08fr_1fr]">
             <section class="relative hidden overflow-hidden bg-coffee-950 p-10 text-cream-50 lg:flex lg:flex-col lg:justify-between xl:p-14">
@@ -42,7 +42,7 @@ export function renderLogin(root, { onSuccess }) {
                         <span class="text-clay-200">Kami bantu mencatatnya.</span>
                     </h1>
                     <p class="mt-5 max-w-md text-sm leading-relaxed text-coffee-200/80">
-                        Satu tempat untuk mengelola pesanan, pelanggan, reservasi, dan laporan Café Titik Temu.
+                        Satu tempat untuk mengelola pesanan, pelanggan, menu, dan laporan Café Titik Temu.
                     </p>
 
                     <div class="mt-10 space-y-4">
@@ -72,7 +72,7 @@ export function renderLogin(root, { onSuccess }) {
             <section class="flex min-h-screen flex-col bg-cream-100 px-5 py-8 sm:px-10 lg:px-14 xl:px-20">
                 <div class="flex items-center justify-between lg:hidden">
                     <div class="text-coffee-900">${brand}</div>
-                    <span class="badge-neutral">Portal kasir</span>
+                    <span class="badge-neutral">Portal staf</span>
                 </div>
 
                 <div class="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-10">
@@ -86,6 +86,13 @@ export function renderLogin(root, { onSuccess }) {
                         </p>
                     </div>
 
+                    ${notice ? `
+                        <div class="mb-5 flex items-start gap-3 rounded-xl border border-sage-200 bg-sage-50 px-4 py-3 text-sm text-sage-700" role="status">
+                            <span class="mt-0.5 shrink-0">${icon('checkCircle', 'size-4.5')}</span>
+                            <p>${escapeHtml(notice)}</p>
+                        </div>
+                    ` : ''}
+
                     <div id="login-alert" class="mb-5 hidden rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert"></div>
 
                     <form id="login-form" novalidate class="space-y-5">
@@ -96,7 +103,7 @@ export function renderLogin(root, { onSuccess }) {
                                     ${icon('mail', 'size-4.5')}
                                 </span>
                                 <input id="email" name="email" type="email" autocomplete="username" required
-                                    class="input h-12 pl-11" placeholder="nama@titiktemu.id">
+                                    class="input h-12 pl-11" placeholder="nama@titiktemu.id" value="${escapeHtml(initialEmail)}">
                             </div>
                         </div>
 
@@ -123,6 +130,25 @@ export function renderLogin(root, { onSuccess }) {
                         </button>
                     </form>
 
+                    <p class="mt-6 text-center text-sm text-coffee-500">
+                        Belum punya akun?
+                        <button type="button" id="go-register" class="font-semibold text-clay-600 transition hover:text-clay-700">
+                            Daftar sekarang
+                        </button>
+                    </p>
+
+                    <div class="my-6 flex items-center gap-3">
+                        <span class="h-px flex-1 bg-coffee-200"></span>
+                        <span class="text-[10px] font-semibold tracking-[0.16em] text-coffee-300 uppercase">atau</span>
+                        <span class="h-px flex-1 bg-coffee-200"></span>
+                    </div>
+
+                    <button type="button" id="go-customer" class="btn-secondary h-11 w-full">
+                        ${icon('bag', 'size-4')}
+                        Pesan sebagai pelanggan
+                    </button>
+                    <p class="mt-2 text-center text-[11px] text-coffee-400">Tanpa akun. Pilih menu, pesan, lalu bayar.</p>
+
                     <div class="mt-8 flex items-start gap-3 rounded-2xl border border-coffee-200/70 bg-white/60 p-4">
                         <span class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-coffee-100 text-coffee-600">
                             ${icon('shield', 'size-4.5')}
@@ -147,6 +173,9 @@ export function renderLogin(root, { onSuccess }) {
     const alert = root.querySelector('#login-alert');
     const password = root.querySelector('#password');
     const toggle = root.querySelector('#toggle-password');
+
+    root.querySelector('#go-register')?.addEventListener('click', () => onRegister?.());
+    root.querySelector('#go-customer')?.addEventListener('click', () => onCustomer?.());
 
     toggle.addEventListener('click', () => {
         const isPassword = password.type === 'password';

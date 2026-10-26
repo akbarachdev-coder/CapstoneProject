@@ -6,11 +6,22 @@ use App\Http\Controllers\Api\LaporanController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\PelangganController;
 use App\Http\Controllers\Api\PembayaranController;
+use App\Http\Controllers\Api\PesananPelangganController;
 use App\Http\Controllers\Api\ReservasiController;
 use App\Http\Controllers\Api\TransaksiController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
+    Route::get('menu', [MenuController::class, 'index'])->middleware('throttle:60,1');
+    Route::get('menu/{menu}', [MenuController::class, 'show'])->middleware('throttle:60,1');
+
+    Route::prefix('pelanggan')->middleware('throttle:30,1')->group(function () {
+        Route::post('pesanan', [PesananPelangganController::class, 'store']);
+        Route::get('pesanan/{kode}', [PesananPelangganController::class, 'show']);
+        Route::post('pesanan/{kode}/pembayaran', [PesananPelangganController::class, 'bayar']);
+    });
+
+    Route::post('auth/register', [AuthController::class, 'register'])->middleware('throttle:login');
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
 
     Route::middleware(['auth:sanctum', 'active'])->group(function () {
@@ -19,7 +30,6 @@ Route::prefix('v1')->group(function () {
 
         Route::apiResource('pelanggan', PelangganController::class);
 
-        Route::apiResource('menu', MenuController::class)->only(['index', 'show']);
         Route::apiResource('menu', MenuController::class)
             ->only(['store', 'update', 'destroy'])
             ->middleware('role:admin');
@@ -41,6 +51,7 @@ Route::prefix('v1')->group(function () {
         Route::middleware('role:admin')->group(function () {
             Route::apiResource('kasir', KasirController::class);
             Route::get('laporan/penjualan', [LaporanController::class, 'penjualan']);
+            Route::get('laporan/pendapatan', [LaporanController::class, 'pendapatan']);
         });
     });
 });

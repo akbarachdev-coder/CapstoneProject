@@ -65,4 +65,59 @@ class LaporanController extends ApiController
             ],
         ]);
     }
+
+    public function pendapatan(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'dari' => ['nullable', 'date'],
+            'sampai' => ['nullable', 'date', 'after_or_equal:dari'],
+        ]);
+
+        $dari = Carbon::parse($validated['dari'] ?? now())->startOfDay();
+        $sampai = Carbon::parse($validated['sampai'] ?? now())->endOfDay();
+
+        if ($dari->diffInDays($sampai) > 31) {
+            return response()->json([
+                'message' => 'Rentang laporan maksimal 31 hari.',
+            ], 422);
+        }
+
+        $base = Pembayaran::query()
+            ->whereIn('status_pembayaran', [Pembayaran::STATUS_SEBAGIAN, Pembayaran::STATUS_LUNAS])
+            ->whereNotNull('tanggal_pembayaran')
+            ->whereBetween('tanggal_pembayaran', [$dari, $sampai])
+            ->whereHas('transaksi', function ($query) {
+                $query->where('status', '!=', Transaksi::STATUS_DIBATALKAN);
+            });
+
+        $ringkasan = (clone $base)
+            ->selectRaw('COUNT(*) as jumlah_pembayaran, COALESCE(SUM(jumlah_bayar), 0) as total_pendapatan')
+            ->first();
+
+        $perHari = (clone $base)
+            ->selectRaw('DATE(tanggal_pembayaran) as tanggal, COUNT(*) as jumlah_pembayaran, COALESCE(SUM(jumlah_bayar), 0) as total_pendapatan')
+            ->groupBy('tanggal')
+            ->orderBy('tanggal')
+            ->get();
+
+        $perMetode = (clone $base)
+            ->selectRaw('metode_pembayaran, COUNT(*) as jumlah_pembayaran, COALESCE(SUM(jumlah_bayar), 0) as total')
+            ->groupBy('metode_pembayaran')
+            ->get();
+
+        return response()->json([
+            'data' => [
+                'periode' => [
+                    'dari' => $dari->toDateString(),
+                    'sampai' => $sampai->toDateString(),
+                ],
+                'ringkasan' => [
+                    'jumlah_pembayaran' => (int) $ringkasan->jumlah_pembayaran,
+                    'total_pendapatan' => (float) $ringkasan->total_pendapatan,
+                ],
+                'per_hari' => $perHari,
+                'per_metode_pembayaran' => $perMetode,
+            ],
+        ]);
+    }
 }
